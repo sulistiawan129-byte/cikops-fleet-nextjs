@@ -1,0 +1,33 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2E5BFF"/>
+      <stop offset="55%" stop-color="#1C3FD6"/>
+      <stop offset="100%" stop-color="#0B1E4D"/>
+    </linearGradient>
+    <linearGradient id="trackGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00C2FF" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#00C2FF" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="256" cy="256" r="256" fill="#ffffff"/>
+
+  <path d="M256 416 C256 416 366 286 366 206 C366 145.144 316.856 96 256 96 C195.144 96 146 145.144 146 206 C146 286 256 416 256 416 Z"
+        fill="url(#pinGrad)"/>
+
+  <path d="M96 256 C96 256 130 224 174 218" stroke="url(#trackGrad)" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <circle cx="92" cy="256" r="7" fill="#00C2FF"/>
+
+  <g transform="translate(182, 174)">
+    <rect x="0" y="34" width="78" height="42" rx="6" fill="#ffffff"/>
+    <rect x="82" y="10" width="48" height="66" rx="6" fill="#ffffff"/>
+    <rect x="91" y="20" width="24" height="22" rx="3" fill="#0B1E4D" opacity="0.35"/>
+    <circle cx="22" cy="80" r="11.5" fill="#0B1E4D"/>
+    <circle cx="22" cy="80" r="4.5" fill="#ffffff"/>
+    <circle cx="102" cy="80" r="11.5" fill="#0B1E4D"/>
+    <circle cx="102" cy="80" r="4.5" fill="#ffffff"/>
+  </g>
+
+  <circle cx="256" cy="206" r="5" fill="#00C2FF"/>
+</svg>

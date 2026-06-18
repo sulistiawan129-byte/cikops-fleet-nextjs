@@ -1,0 +1,180 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Space+Mono:wght@500;700&display=swap");
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ════════════════════════════════════════════════
+   DESIGN TOKENS — Blue/Navy Neon, light-first
+   Terang bersih ala app ojol, dark mode sebagai opsi sekunder.
+════════════════════════════════════════════════ */
+:root {
+  --bg: #f5f7fc;
+  --bg2: #eef1f9;
+  --bg3: #e6eaf5;
+  --surface: #ffffff;
+  --surface2: #f7f9fd;
+  --border: #e7eaf3;
+  --border2: #d9dff0;
+
+  --brand: #2e5bff;
+  --brand2: #1c44e0;
+  --navy: #0b1e4d;
+  --neon: #00c2ff;
+  --green: #00b86b;
+  --green-soft: #e6f8ef;
+  --orange: #ff8a00;
+  --orange-soft: #fff3e2;
+  --red: #ff3b5c;
+  --red-soft: #ffe9ed;
+  --purple: #7c5cff;
+
+  --t1: #0b1230;
+  --t2: #5b6584;
+  --t3: #9aa3c0;
+
+  --font: "Plus Jakarta Sans", system-ui, sans-serif;
+  --mono: "Space Mono", monospace;
+  --r1: 16px;
+  --r2: 22px;
+  --r3: 30px;
+
+  --shadow-sm: 0 2px 10px rgba(15, 30, 80, 0.05);
+  --shadow-md: 0 8px 28px rgba(15, 30, 80, 0.08);
+  --shadow-lg: 0 16px 44px rgba(15, 30, 80, 0.12);
+  --shadow-brand: 0 10px 26px rgba(46, 91, 255, 0.28);
+
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+[data-theme="dark"] {
+  --bg: #0a0e1a;
+  --bg2: #0f1420;
+  --bg3: #141826;
+  --surface: #131a2c;
+  --surface2: #182039;
+  --border: rgba(255, 255, 255, 0.08);
+  --border2: rgba(255, 255, 255, 0.14);
+
+  --brand: #5b8cff;
+  --brand2: #4f8fff;
+  --navy: #cdd9ff;
+  --neon: #00d4ff;
+  --green: #1fdc83;
+  --green-soft: rgba(31, 220, 131, 0.12);
+  --orange: #ff9d4d;
+  --orange-soft: rgba(255, 157, 77, 0.12);
+  --red: #ff5673;
+  --red-soft: rgba(255, 86, 115, 0.12);
+  --purple: #a98bff;
+
+  --t1: #f3f5ff;
+  --t2: rgba(220, 228, 255, 0.66);
+  --t3: rgba(170, 184, 230, 0.4);
+
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.45);
+  --shadow-brand: 0 10px 26px rgba(91, 140, 255, 0.32);
+}
+
+html {
+  font-size: 16px;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--t1);
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.3s, color 0.3s;
+  min-height: 100%;
+  overscroll-behavior-y: none;
+}
+
+button {
+  font-family: inherit;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+select {
+  font-family: inherit;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  75% {
+    transform: translateX(6px);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
