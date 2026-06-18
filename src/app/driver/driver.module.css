@@ -260,7 +260,20 @@
 }
 
 .driverCardSelected {
-  box-shadow: 0 0 0 2.5px var(--brand), 0 10px 26px rgba(46, 91, 255, 0.3);
+  background: var(--brand);
+  box-shadow: 0 0 0 2.5px #ffffff, 0 12px 28px rgba(46, 91, 255, 0.45);
+}
+
+.driverCardSelected .driverCardName {
+  color: #ffffff;
+}
+
+.driverCardSelected .driverCardRole {
+  color: #ffffff;
+}
+
+.driverCardSelected .driverAvatar {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .driverAvatar {
@@ -330,7 +343,7 @@
 }
 
 .driverCardSelected .driverCardChevron {
-  color: var(--brand);
+  color: #ffffff;
   transform: translateX(2px);
 }
 
