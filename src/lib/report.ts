@@ -1,5 +1,6 @@
 import type { Driver, TaskDetail } from "./types";
-import { computeDriverSummaries, computeStats } from "./types";
+import { computeReportAnalytics, formatMinutes } from "./analytics";
+import type { RankedEntry } from "./analytics";
 
 function escapeCsvField(value: string | number | null | undefined): string {
   const str = value === null || value === undefined ? "" : String(value);
@@ -21,6 +22,11 @@ function formatDateTime(iso: string | null): string {
   });
 }
 
+function formatDateOnly(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 function statusLabelId(status: string): string {
   if (status === "ASSIGNED") return "Baru Ditugaskan";
   if (status === "ON GOING") return "Sedang Berjalan";
@@ -29,7 +35,7 @@ function statusLabelId(status: string): string {
 }
 
 /* ════════════════════════════════════════════════════════════
-   CSV EXPORT
+   CSV EXPORT — tidak berubah, data mentah lengkap
 ════════════════════════════════════════════════════════════ */
 
 export function exportTasksToCsv(
@@ -80,7 +86,6 @@ export function exportTasksToCsv(
     ...rows.map((row) => row.map(escapeCsvField).join(",")),
   ];
 
-  // BOM agar Excel membuka UTF-8 (karakter Indonesia) dengan benar
   const csvContent = "\uFEFF" + csvLines.join("\r\n");
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -94,8 +99,25 @@ export function exportTasksToCsv(
 }
 
 /* ════════════════════════════════════════════════════════════
-   PDF EXPORT — komprehensif: ringkasan + per-driver + detail lengkap
+   PDF EXPORT — laporan profesional & komprehensif:
+   1. Ringkasan keseluruhan (stat cards)
+   2. Analytics & Insights (bar chart per kategori)
+   3. Ringkasan per driver (tabel performa)
+   4. Detail lengkap setiap tugas
 ════════════════════════════════════════════════════════════ */
+
+type RGB = [number, number, number];
+
+const COLOR_NAVY: RGB = [11, 30, 77];
+const COLOR_BRAND: RGB = [46, 91, 255];
+const COLOR_NEON: RGB = [0, 194, 255];
+const COLOR_GREEN: RGB = [0, 184, 107];
+const COLOR_ORANGE: RGB = [255, 138, 0];
+const COLOR_RED: RGB = [255, 59, 92];
+const COLOR_PURPLE: RGB = [124, 92, 255];
+const COLOR_GRAY: RGB = [100, 110, 130];
+const COLOR_LIGHT_BG: RGB = [247, 249, 253];
+const COLOR_LIGHT_BORDER: RGB = [222, 227, 240];
 
 export async function exportTasksToPdf(
   tasks: TaskDetail[],
@@ -109,31 +131,11 @@ export async function exportTasksToPdf(
 
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 40;
+  const contentWidth = pageWidth - marginX * 2;
 
-  const stats = computeStats(tasks);
-  const driverSummaries = computeDriverSummaries(tasks, drivers);
-
-  const brandBlue: [number, number, number] = [46, 91, 255];
-  const navy: [number, number, number] = [11, 30, 77];
-  const gray: [number, number, number] = [100, 110, 130];
-
-  /* ── Header ── */
-  doc.setFillColor(...navy);
-  doc.rect(0, 0, pageWidth, 70, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text("CIKOPS FLEET OPERATIONS", marginX, 30);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "normal");
-  doc.text("Laporan Penugasan Driver", marginX, 48);
-  doc.setFontSize(9);
-  doc.text(
-    `Periode: ${formatDateOnly(dateFrom)} s/d ${formatDateOnly(dateTo)}`,
-    marginX,
-    62
-  );
+  const analytics = computeReportAnalytics(tasks, drivers);
 
   const generatedAt = new Date().toLocaleString("id-ID", {
     day: "2-digit",
@@ -142,95 +144,300 @@ export async function exportTasksToPdf(
     hour: "2-digit",
     minute: "2-digit",
   });
-  doc.setFontSize(8);
-  doc.text(`Dibuat: ${generatedAt}`, pageWidth - marginX, 30, {
-    align: "right",
-  });
 
-  let y = 96;
-
-  /* ── Ringkasan keseluruhan ── */
-  doc.setTextColor(...navy);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text("Ringkasan Keseluruhan", marginX, y);
-  y += 10;
-
-  const summaryCards: Array<[string, number]> = [
-    ["Total Tugas", stats.total],
-    ["Baru Ditugaskan", stats.assigned],
-    ["Sedang Berjalan", stats.ongoing],
-    ["Selesai", stats.done],
-    ["Dibatalkan", stats.cancelled],
-  ];
-  const cardWidth = (pageWidth - marginX * 2) / summaryCards.length;
-  summaryCards.forEach(([label, value], i) => {
-    const x = marginX + i * cardWidth;
-    doc.setDrawColor(220, 224, 235);
-    doc.setFillColor(247, 249, 253);
-    doc.roundedRect(x, y, cardWidth - 8, 46, 4, 4, "FD");
-    doc.setTextColor(...brandBlue);
+  function drawPageHeader(subtitle: string) {
+    doc.setFillColor(...COLOR_NAVY);
+    doc.rect(0, 0, pageWidth, 64, "F");
+    doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
-    doc.text(String(value), x + 12, y + 24);
-    doc.setTextColor(...gray);
+    doc.text("CIKOPS FLEET OPERATIONS", marginX, 27);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(subtitle, marginX, 44);
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text(
+      `Periode ${formatDateOnly(dateFrom)} s/d ${formatDateOnly(dateTo)}`,
+      pageWidth - marginX,
+      27,
+      { align: "right" }
+    );
+    doc.text(`Dibuat ${generatedAt}`, pageWidth - marginX, 40, {
+      align: "right",
+    });
+  }
+
+  function drawStatCard(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    label: string,
+    value: string,
+    accent: RGB
+  ) {
+    doc.setFillColor(...accent);
+    doc.rect(x, y, w, 3, "F");
+    doc.setDrawColor(...COLOR_LIGHT_BORDER);
+    doc.setFillColor(...COLOR_LIGHT_BG);
+    doc.rect(x, y + 3, w, h - 3, "FD");
+    doc.setTextColor(...COLOR_NAVY);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text(value, x + 12, y + h / 2 + 4);
+    doc.setTextColor(...COLOR_GRAY);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.text(label, x + 12, y + 36);
+    doc.text(label, x + 12, y + h - 8);
+  }
+
+  function drawSectionTitle(x: number, y: number, text: string) {
+    doc.setFillColor(...COLOR_BRAND);
+    doc.rect(x, y - 9, 3, 11, "F");
+    doc.setTextColor(...COLOR_NAVY);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11.5);
+    doc.text(text, x + 9, y);
+  }
+
+  function drawBarChart(
+    x: number,
+    y: number,
+    w: number,
+    title: string,
+    entries: RankedEntry[],
+    color: RGB,
+    valueFormatter: (v: number) => string = (v) => String(v)
+  ): number {
+    const rowHeight = 16;
+    const labelWidth = w * 0.42;
+    const barAreaX = x + labelWidth;
+    const barAreaWidth = w - labelWidth - 46;
+    const maxValue = Math.max(...entries.map((e) => e.value), 1);
+
+    doc.setTextColor(...COLOR_NAVY);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.text(title, x, y);
+    let rowY = y + 14;
+
+    if (entries.length === 0) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...COLOR_GRAY);
+      doc.text("Tidak ada data", x, rowY + 4);
+      return 14 + 18;
+    }
+
+    for (const entry of entries) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(40, 46, 70);
+      const labelText = doc.splitTextToSize(entry.label, labelWidth - 6);
+      doc.text(labelText[0] || entry.label, x, rowY + 5);
+
+      const barW = Math.max(
+        (entry.value / maxValue) * barAreaWidth,
+        entry.value > 0 ? 4 : 0
+      );
+      doc.setFillColor(232, 236, 248);
+      doc.roundedRect(barAreaX, rowY - 2, barAreaWidth, 8, 2, 2, "F");
+      if (barW > 0) {
+        doc.setFillColor(...color);
+        doc.roundedRect(barAreaX, rowY - 2, barW, 8, 2, 2, "F");
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...COLOR_NAVY);
+      doc.text(
+        valueFormatter(entry.value),
+        barAreaX + barAreaWidth + 6,
+        rowY + 4
+      );
+
+      rowY += rowHeight;
+    }
+
+    return rowY - y;
+  }
+
+  function drawFooterNote() {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...COLOR_GRAY);
+    doc.text(
+      "CIKOPS Fleet OS — Laporan dibuat otomatis dari data sistem",
+      marginX,
+      pageHeight - 16
+    );
+  }
+
+  /* ════════════════════════════════════════════════
+     HALAMAN 1 — Ringkasan Keseluruhan + Analytics
+  ════════════════════════════════════════════════ */
+  drawPageHeader("Laporan Komprehensif Operasional Driver");
+
+  let y = 96;
+  drawSectionTitle(marginX, y, "Ringkasan Keseluruhan");
+  y += 18;
+
+  const summaryCards: Array<[string, string, RGB]> = [
+    ["Total Tugas", String(analytics.totalTask), COLOR_BRAND],
+    ["Baru Ditugaskan", String(analytics.assigned), COLOR_ORANGE],
+    ["Sedang Berjalan", String(analytics.ongoing), COLOR_NEON],
+    ["Selesai", String(analytics.done), COLOR_GREEN],
+    ["Driver Aktif", String(analytics.driverAktif), COLOR_PURPLE],
+    [
+      "Tingkat Selesai",
+      `${analytics.completionRate.toFixed(0)}%`,
+      COLOR_GREEN,
+    ],
+  ];
+  const cardGap = 8;
+  const cardW =
+    (contentWidth - cardGap * (summaryCards.length - 1)) / summaryCards.length;
+  const cardH = 56;
+  summaryCards.forEach(([label, value, color], i) => {
+    drawStatCard(
+      marginX + i * (cardW + cardGap),
+      y,
+      cardW,
+      cardH,
+      label,
+      value,
+      color
+    );
   });
-  y += 46 + 26;
+  y += cardH + 30;
 
-  /* ── Ringkasan per driver ── */
-  doc.setTextColor(...navy);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text("Ringkasan per Driver", marginX, y);
-  y += 8;
+  drawSectionTitle(marginX, y, "Analytics & Insights");
+  y += 20;
 
-  const driverRows = driverSummaries.map((s) => [
+  const colGap = 26;
+  const colW = (contentWidth - colGap) / 2;
+  const col1X = marginX;
+  const col2X = marginX + colW + colGap;
+  const rowTopY = y;
+
+  const h1 = drawBarChart(
+    col1X,
+    rowTopY,
+    colW,
+    "Top Driver (Jumlah Tugas)",
+    analytics.topDriverByTask,
+    COLOR_BRAND
+  );
+  const h2 = drawBarChart(
+    col2X,
+    rowTopY,
+    colW,
+    "Rata-rata Durasi Pengerjaan per Driver",
+    analytics.avgDurationByDriver,
+    COLOR_NEON,
+    (v) => formatMinutes(v)
+  );
+
+  const row2TopY = rowTopY + Math.max(h1, h2) + 26;
+  const h3 = drawBarChart(
+    col1X,
+    row2TopY,
+    colW,
+    "Top Departemen Requestor",
+    analytics.topDepartementRequestor,
+    COLOR_PURPLE
+  );
+  const h4 = drawBarChart(
+    col2X,
+    row2TopY,
+    colW,
+    "Jenis Pekerjaan Terbanyak",
+    analytics.topJenisPekerjaan,
+    COLOR_GREEN
+  );
+
+  const row3TopY = row2TopY + Math.max(h3, h4) + 26;
+  drawBarChart(
+    col1X,
+    row3TopY,
+    colW,
+    "Utilisasi Kendaraan",
+    analytics.utilisasiKendaraan,
+    COLOR_ORANGE
+  );
+  drawBarChart(
+    col2X,
+    row3TopY,
+    colW,
+    "Aktivitas Harian",
+    analytics.aktivitasHarian.map((e) => ({
+      ...e,
+      label: formatDateOnly(e.label),
+    })),
+    COLOR_RED
+  );
+
+  drawFooterNote();
+
+  /* ════════════════════════════════════════════════
+     HALAMAN 2 — Ringkasan Performa per Driver
+  ════════════════════════════════════════════════ */
+  doc.addPage();
+  drawPageHeader("Ringkasan Performa per Driver");
+  y = 96;
+  drawSectionTitle(marginX, y, "Ringkasan per Driver");
+
+  const driverRows = analytics.driverSummaries.map((s) => [
     s.driverNama,
-    String(s.total),
-    String(s.done),
-    String(s.cancelled),
-    String(s.ongoingOrAssigned),
+    String(s.totalTask),
+    String(s.selesai),
+    String(s.dibatalkan),
+    String(s.aktif),
     `${s.completionRate.toFixed(0)}%`,
-    s.avgDurationMinutes !== null
-      ? `${Math.round(s.avgDurationMinutes)} menit`
-      : "-",
+    formatMinutes(s.totalJamKerjaMinutes),
+    s.avgDurationMinutes !== null ? formatMinutes(s.avgDurationMinutes) : "-",
   ]);
 
   autoTable(doc, {
-    startY: y + 6,
+    startY: y + 14,
     margin: { left: marginX, right: marginX },
     head: [
       [
         "Driver",
-        "Total",
+        "Total Tugas",
         "Selesai",
         "Dibatalkan",
         "Aktif",
-        "Tingkat Selesai",
-        "Durasi Rata-rata",
+        "Completion Rate",
+        "Total Jam Kerja",
+        "Avg Durasi/Tugas",
       ],
     ],
-    body: driverRows.length > 0 ? driverRows : [["Tidak ada data", "", "", "", "", "", ""]],
+    body:
+      driverRows.length > 0
+        ? driverRows
+        : [["Tidak ada data", "", "", "", "", "", "", ""]],
     theme: "grid",
     headStyles: {
-      fillColor: brandBlue,
+      fillColor: COLOR_BRAND,
       textColor: [255, 255, 255],
       fontStyle: "bold",
       fontSize: 9,
     },
     bodyStyles: { fontSize: 8.5, textColor: [20, 26, 50] },
-    alternateRowStyles: { fillColor: [247, 249, 253] },
+    alternateRowStyles: { fillColor: COLOR_LIGHT_BG },
   });
 
-  /* ── Detail lengkap semua tugas (halaman baru) ── */
+  drawFooterNote();
+
+  /* ════════════════════════════════════════════════
+     HALAMAN 3+ — Detail Lengkap Setiap Tugas
+  ════════════════════════════════════════════════ */
   doc.addPage();
-  doc.setTextColor(...navy);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text("Detail Lengkap Tugas", marginX, 36);
+  drawPageHeader("Detail Lengkap Tugas");
+  y = 96;
+  drawSectionTitle(marginX, y, "Detail Lengkap Tugas");
 
   const detailRows = tasks.map((t) => [
     t.tanggal,
@@ -245,7 +452,7 @@ export async function exportTasksToPdf(
   ]);
 
   autoTable(doc, {
-    startY: 50,
+    startY: y + 14,
     margin: { left: marginX, right: marginX },
     head: [
       [
@@ -266,38 +473,36 @@ export async function exportTasksToPdf(
         : [["Tidak ada tugas pada periode ini", "", "", "", "", "", "", "", ""]],
     theme: "grid",
     headStyles: {
-      fillColor: navy,
+      fillColor: COLOR_NAVY,
       textColor: [255, 255, 255],
       fontStyle: "bold",
       fontSize: 8.5,
     },
     bodyStyles: { fontSize: 7.5, textColor: [20, 26, 50] },
-    alternateRowStyles: { fillColor: [247, 249, 253] },
+    alternateRowStyles: { fillColor: COLOR_LIGHT_BG },
     styles: { overflow: "linebreak" },
     columnStyles: {
       4: { cellWidth: 110 },
       5: { cellWidth: 90 },
     },
+    didDrawPage: () => {
+      drawFooterNote();
+    },
   });
 
-  /* ── Footer di setiap halaman ── */
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(...gray);
+    doc.setFontSize(7.5);
+    doc.setTextColor(...COLOR_GRAY);
     doc.text(
-      `CIKOPS Fleet OS — Halaman ${i} dari ${pageCount}`,
-      marginX,
-      doc.internal.pageSize.getHeight() - 18
+      `Halaman ${i} dari ${pageCount}`,
+      pageWidth - marginX,
+      pageHeight - 16,
+      { align: "right" }
     );
   }
 
   doc.save(`CIKOPS_Report_${dateFrom}_to_${dateTo}.pdf`);
-}
-
-function formatDateOnly(isoDate: string): string {
-  const [y, m, d] = isoDate.split("-");
-  return `${d}/${m}/${y}`;
 }
