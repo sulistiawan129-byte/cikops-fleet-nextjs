@@ -16,6 +16,7 @@ import {
   updateTaskStatus,
 } from "@/lib/api";
 import { exportTasksToCsv, exportTasksToPdf } from "@/lib/report";
+import { computeReportAnalytics, formatMinutes } from "@/lib/analytics";
 import type {
   Driver,
   Employee,
@@ -223,10 +224,10 @@ export default function DashboardPage() {
           <button
             className={styles.iconBtn}
             onClick={() => setReportModalOpen(true)}
-            aria-label="Unduh laporan"
-            title="Unduh laporan"
+            aria-label="Laporan & Analytics"
+            title="Laporan & Analytics"
           >
-            📄
+            📊
           </button>
           <button className={styles.btnPrimary} onClick={() => setModalOpen(true)}>
             {isMobile ? "+ Tugaskan" : "+ Tugaskan Driver"}
@@ -588,6 +589,28 @@ function MobileTaskList({
    REPORT MODAL — pilih rentang tanggal, unduh CSV/PDF
 ════════════════════════════════════════════════ */
 
+type QuickRange = "today" | "7d" | "14d" | "30d" | "3m" | "thisMonth";
+
+function quickRangeToDates(range: QuickRange): { from: string; to: string } {
+  const to = new Date();
+  const from = new Date();
+  if (range === "today") {
+    // from = to
+  } else if (range === "7d") {
+    from.setDate(from.getDate() - 6);
+  } else if (range === "14d") {
+    from.setDate(from.getDate() - 13);
+  } else if (range === "30d") {
+    from.setDate(from.getDate() - 29);
+  } else if (range === "3m") {
+    from.setMonth(from.getMonth() - 3);
+  } else if (range === "thisMonth") {
+    from.setDate(1);
+  }
+  const fmt = (d: Date) => d.toISOString().split("T")[0];
+  return { from: fmt(from), to: fmt(to) };
+}
+
 function ReportModal({
   drivers,
   onClose,
@@ -599,9 +622,41 @@ function ReportModal({
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
 }) {
-  const [dateFrom, setDateFrom] = useState(todayStr());
-  const [dateTo, setDateTo] = useState(todayStr());
+  const [quickRange, setQuickRange] = useState<QuickRange>("7d");
+  const [dateFrom, setDateFrom] = useState(quickRangeToDates("7d").from);
+  const [dateTo, setDateTo] = useState(quickRangeToDates("7d").to);
   const [busy, setBusy] = useState<"csv" | "pdf" | null>(null);
+  const [reportTasks, setReportTasks] = useState<TaskDetail[]>([]);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  const loadPreview = useCallback(async () => {
+    if (!dateFrom || !dateTo) return;
+    setLoadingPreview(true);
+    try {
+      const data = await getTasksByRange(dateFrom, dateTo);
+      setReportTasks(data);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Gagal memuat data laporan");
+    } finally {
+      setLoadingPreview(false);
+    }
+  }, [dateFrom, dateTo, onError]);
+
+  useEffect(() => {
+    loadPreview();
+  }, [loadPreview]);
+
+  function applyQuickRange(range: QuickRange) {
+    setQuickRange(range);
+    const { from, to } = quickRangeToDates(range);
+    setDateFrom(from);
+    setDateTo(to);
+  }
+
+  const analytics = useMemo(
+    () => computeReportAnalytics(reportTasks, drivers),
+    [reportTasks, drivers]
+  );
 
   async function handleDownload(format: "csv" | "pdf") {
     if (!dateFrom || !dateTo) {
@@ -610,7 +665,10 @@ function ReportModal({
     }
     setBusy(format);
     try {
-      const tasks = await getTasksByRange(dateFrom, dateTo);
+      const tasks =
+        reportTasks.length > 0 || !loadingPreview
+          ? reportTasks
+          : await getTasksByRange(dateFrom, dateTo);
       if (format === "csv") {
         exportTasksToCsv(tasks, dateFrom, dateTo);
       } else {
@@ -619,7 +677,6 @@ function ReportModal({
       onSuccess(
         `Laporan ${format.toUpperCase()} berhasil diunduh (${tasks.length} tugas)`
       );
-      onClose();
     } catch (e) {
       onError(e instanceof Error ? e.message : "Gagal membuat laporan");
     } finally {
@@ -628,60 +685,289 @@ function ReportModal({
   }
 
   return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modalBox} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalHeader}>
-          <div className={styles.modalTitle}>Unduh Laporan</div>
+    <div className={styles.reportOverlay}>
+      <div className={styles.reportPanel}>
+        <div className={styles.reportTopbar}>
+          <div className={styles.reportTitleWrap}>
+            <div className={styles.topbarEyebrow}>CIKOPS</div>
+            <div className={styles.topbarTitle}>Laporan & Analytics</div>
+          </div>
           <button className={styles.modalClose} onClick={onClose}>
-            ✕
+            ✕ Tutup
           </button>
         </div>
 
-        <div className={styles.formGrid}>
-          <div className={styles.formField}>
-            <label className={styles.formLabel}>Dari Tanggal</label>
-            <input
-              type="date"
-              className={styles.formInput}
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
+        <div className={styles.reportBody}>
+          <div className={styles.reportFilterRow}>
+            <div className={styles.toolbarDate}>
+              <span>📅</span>
+              <input
+                type="date"
+                className={styles.toolbarDateInput}
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </div>
+            <span className={styles.reportRangeDash}>s/d</span>
+            <div className={styles.toolbarDate}>
+              <input
+                type="date"
+                className={styles.toolbarDateInput}
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </div>
+
+            <div className={styles.reportQuickChips}>
+              {(
+                [
+                  ["today", "Hari Ini"],
+                  ["7d", "7 Hari"],
+                  ["14d", "14 Hari"],
+                  ["30d", "30 Hari"],
+                  ["3m", "3 Bulan"],
+                  ["thisMonth", "Bulan Ini"],
+                ] as [QuickRange, string][]
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  className={`${styles.statusChip} ${
+                    quickRange === key ? styles.statusChipOn : ""
+                  }`}
+                  onClick={() => applyQuickRange(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className={styles.formField}>
-            <label className={styles.formLabel}>Sampai Tanggal</label>
-            <input
-              type="date"
-              className={styles.formInput}
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
+
+          <div className={styles.reportActionRow}>
+            <button
+              className={styles.btnReportCsv}
+              disabled={busy !== null || loadingPreview}
+              onClick={() => handleDownload("csv")}
+            >
+              {busy === "csv" ? "Menyiapkan..." : "⬇ Export CSV"}
+            </button>
+            <button
+              className={styles.btnSubmit}
+              disabled={busy !== null || loadingPreview}
+              onClick={() => handleDownload("pdf")}
+            >
+              {busy === "pdf" ? "Menyiapkan..." : "⬇ Export PDF"}
+            </button>
           </div>
-        </div>
 
-        <div className={styles.reportNote}>
-          Laporan PDF berisi ringkasan keseluruhan, ringkasan performa per
-          driver, dan detail lengkap setiap tugas pada rentang tanggal yang
-          dipilih. Laporan CSV berisi data mentah lengkap untuk diolah lebih
-          lanjut (Excel/Sheets).
-        </div>
+          {loadingPreview ? (
+            <div className={styles.tableWrap}>
+              <div className={styles.tableLoading}>
+                <div className={styles.spinner} />
+                <div className={styles.loadingTxt}>Memuat data laporan...</div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className={styles.statsRow}>
+                <div className={`${styles.statCard} ${styles.statTotal}`}>
+                  <div className={styles.statCardNum}>{analytics.totalTask}</div>
+                  <div className={styles.statCardLabel}>Total Task</div>
+                </div>
+                <div className={`${styles.statCard} ${styles.statAssigned}`}>
+                  <div className={styles.statCardNum}>{analytics.assigned}</div>
+                  <div className={styles.statCardLabel}>Assigned</div>
+                </div>
+                <div className={`${styles.statCard} ${styles.statOngoing}`}>
+                  <div className={styles.statCardNum}>{analytics.ongoing}</div>
+                  <div className={styles.statCardLabel}>On Going</div>
+                </div>
+                <div className={`${styles.statCard} ${styles.statDone}`}>
+                  <div className={styles.statCardNum}>{analytics.done}</div>
+                  <div className={styles.statCardLabel}>Done</div>
+                </div>
+                <div className={`${styles.statCard} ${styles.statDriverAktif}`}>
+                  <div className={styles.statCardNum}>
+                    {analytics.driverAktif}
+                  </div>
+                  <div className={styles.statCardLabel}>Driver Aktif</div>
+                </div>
+                <div className={`${styles.statCard} ${styles.statCompletion}`}>
+                  <div className={styles.statCardNum}>
+                    {analytics.completionRate.toFixed(0)}%
+                  </div>
+                  <div className={styles.statCardLabel}>Completion Rate</div>
+                </div>
+              </div>
 
-        <div className={styles.modalActions}>
-          <button
-            className={styles.btnReportCsv}
-            disabled={busy !== null}
-            onClick={() => handleDownload("csv")}
-          >
-            {busy === "csv" ? "Menyiapkan..." : "⬇ Unduh CSV"}
-          </button>
-          <button
-            className={styles.btnSubmit}
-            disabled={busy !== null}
-            onClick={() => handleDownload("pdf")}
-          >
-            {busy === "pdf" ? "Menyiapkan..." : "⬇ Unduh PDF"}
-          </button>
+              <div className={styles.reportSectionHeader}>
+                <span className={styles.reportSectionIco}>📊</span>
+                Analytics & Insights
+              </div>
+
+              <div className={styles.insightGrid}>
+                <InsightCard
+                  icon="🏆"
+                  title="Top Driver (Task)"
+                  entries={analytics.topDriverByTask}
+                  color="blue"
+                />
+                <InsightCard
+                  icon="⏱️"
+                  title="Rata-rata Durasi Driver"
+                  entries={analytics.avgDurationByDriver}
+                  color="cyan"
+                  valueFormatter={(v) => formatMinutes(v)}
+                />
+                <InsightCard
+                  icon="🏢"
+                  title="Top Departemen Requestor"
+                  entries={analytics.topDepartementRequestor}
+                  color="purple"
+                />
+                <InsightCard
+                  icon="🧰"
+                  title="Jenis Pekerjaan Terbanyak"
+                  entries={analytics.topJenisPekerjaan}
+                  color="green"
+                />
+                <InsightCard
+                  icon="🚗"
+                  title="Utilisasi Kendaraan"
+                  entries={analytics.utilisasiKendaraan}
+                  color="orange"
+                />
+                <InsightCard
+                  icon="📅"
+                  title="Aktivitas Harian"
+                  entries={analytics.aktivitasHarian.map((e) => ({
+                    ...e,
+                    label: formatDateLabel(e.label),
+                  }))}
+                  color="red"
+                />
+              </div>
+
+              <div className={styles.reportSectionHeader}>
+                <span className={styles.reportSectionIco}>👥</span>
+                Ringkasan Per Driver
+                <span className={styles.reportSectionCount}>
+                  {analytics.driverSummaries.length} driver
+                </span>
+              </div>
+
+              <div className={styles.driverSummaryGrid}>
+                {analytics.driverSummaries.length === 0 ? (
+                  <div className={styles.tableEmpty}>
+                    <div className={styles.tableEmptyTitle}>
+                      Tidak ada data driver pada periode ini
+                    </div>
+                  </div>
+                ) : (
+                  analytics.driverSummaries.map((s) => (
+                    <div key={s.driverId} className={styles.driverSummaryCard}>
+                      <div className={styles.driverSummaryHeader}>
+                        <span>🏅</span> {s.driverNama}
+                      </div>
+                      <div className={styles.driverSummaryPeriod}>
+                        {formatDateLabel(dateFrom)} s/d {formatDateLabel(dateTo)}
+                      </div>
+                      <div className={styles.driverSummaryRow}>
+                        <span>Total Task</span>
+                        <strong>{s.totalTask}</strong>
+                      </div>
+                      <div className={styles.driverSummaryRow}>
+                        <span>Selesai</span>
+                        <strong>{s.selesai}</strong>
+                      </div>
+                      <div className={styles.driverSummaryRow}>
+                        <span>Completion Rate</span>
+                        <strong className={styles.driverSummaryAccent}>
+                          {s.completionRate.toFixed(0)}%
+                        </strong>
+                      </div>
+                      <div className={styles.driverSummaryRow}>
+                        <span>Total Jam Kerja</span>
+                        <strong className={styles.driverSummaryAccentBlue}>
+                          {formatMinutes(s.totalJamKerjaMinutes)}
+                        </strong>
+                      </div>
+                      <div className={styles.driverSummaryRow}>
+                        <span>Avg Durasi/Task</span>
+                        <strong className={styles.driverSummaryAccentBlue}>
+                          {s.avgDurationMinutes !== null
+                            ? formatMinutes(s.avgDurationMinutes)
+                            : "-"}
+                        </strong>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function formatDateLabel(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+const INSIGHT_COLOR_CLASS: Record<string, string> = {
+  blue: "insightBarBlue",
+  cyan: "insightBarCyan",
+  purple: "insightBarPurple",
+  green: "insightBarGreen",
+  orange: "insightBarOrange",
+  red: "insightBarRed",
+};
+
+function InsightCard({
+  icon,
+  title,
+  entries,
+  color,
+  valueFormatter,
+}: {
+  icon: string;
+  title: string;
+  entries: { label: string; value: number }[];
+  color: string;
+  valueFormatter?: (v: number) => string;
+}) {
+  const maxValue = Math.max(...entries.map((e) => e.value), 1);
+  const barClass =
+    styles[INSIGHT_COLOR_CLASS[color] as keyof typeof styles] || "";
+  return (
+    <div className={styles.insightCard}>
+      <div className={styles.insightCardHeader}>
+        <span>{icon}</span> {title}
+      </div>
+      {entries.length === 0 ? (
+        <div className={styles.insightEmpty}>Tidak ada data</div>
+      ) : (
+        <div className={styles.insightList}>
+          {entries.slice(0, 5).map((e) => (
+            <div key={e.label} className={styles.insightRow}>
+              <div className={styles.insightLabel} title={e.label}>
+                {e.label}
+              </div>
+              <div className={styles.insightBarTrack}>
+                <div
+                  className={`${styles.insightBarFill} ${barClass}`}
+                  style={{ width: `${(e.value / maxValue) * 100}%` }}
+                />
+              </div>
+              <div className={styles.insightValue}>
+                {valueFormatter ? valueFormatter(e.value) : e.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

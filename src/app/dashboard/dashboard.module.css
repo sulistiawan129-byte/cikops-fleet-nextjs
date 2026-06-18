@@ -147,15 +147,20 @@
 
 /* ── Stats row ── */
 .statsRow {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 28px;
 }
 
+.statsRow > .statCard {
+  flex: 1 1 calc(25% - 12px);
+  min-width: 180px;
+}
+
 @media (max-width: 860px) {
-  .statsRow {
-    grid-template-columns: repeat(2, 1fr);
+  .statsRow > .statCard {
+    flex: 1 1 calc(50% - 8px);
   }
 }
 
@@ -869,4 +874,277 @@
 
 .toastError {
   background: var(--red);
+}
+
+/* ════════════════════════════════════════════════
+   REPORT PANEL — dashboard analytics penuh
+════════════════════════════════════════════════ */
+
+.reportOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.reportPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.reportTopbar {
+  flex-shrink: 0;
+  background: var(--surface);
+  padding: 18px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow-sm);
+}
+
+.reportTitleWrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.reportBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px 48px;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.reportFilterRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.reportRangeDash {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--t3);
+}
+
+.reportQuickChips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: 4px;
+}
+
+.reportActionRow {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.reportActionRow .btnReportCsv,
+.reportActionRow .btnSubmit {
+  flex: 0 0 auto;
+  padding: 12px 22px;
+}
+
+.statDriverAktif::before {
+  background: var(--purple);
+}
+
+.statCompletion::before {
+  background: var(--green);
+}
+
+.reportSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--t1);
+  margin: 30px 0 16px;
+}
+
+.reportSectionIco {
+  font-size: 16px;
+}
+
+.reportSectionCount {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--t3);
+  background: var(--bg2);
+  padding: 5px 12px;
+  border-radius: 20px;
+}
+
+/* ── Insight cards (grid analytics) ── */
+.insightGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.insightGrid > .insightCard {
+  flex: 1 1 calc(50% - 8px);
+  min-width: 280px;
+}
+
+.insightCard {
+  background: var(--surface);
+  border-radius: var(--r2);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-md);
+}
+
+.insightCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--t2);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 14px;
+}
+
+.insightEmpty {
+  font-size: 13px;
+  color: var(--t3);
+  padding: 10px 0;
+}
+
+.insightList {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.insightRow {
+  display: grid;
+  grid-template-columns: 38% 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.insightLabel {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--t1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.insightBarTrack {
+  height: 8px;
+  border-radius: 6px;
+  background: var(--bg2);
+  overflow: hidden;
+}
+
+.insightBarFill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.insightBarBlue {
+  background: var(--brand);
+}
+
+.insightBarCyan {
+  background: var(--neon);
+}
+
+.insightBarPurple {
+  background: var(--purple);
+}
+
+.insightBarGreen {
+  background: var(--green);
+}
+
+.insightBarOrange {
+  background: var(--orange);
+}
+
+.insightBarRed {
+  background: var(--red);
+}
+
+.insightValue {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--t1);
+  text-align: right;
+  min-width: 36px;
+}
+
+/* ── Ringkasan per driver: grid card ── */
+.driverSummaryGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.driverSummaryGrid > .driverSummaryCard {
+  flex: 1 1 280px;
+  min-width: 280px;
+}
+
+.driverSummaryCard {
+  background: var(--surface);
+  border-radius: var(--r2);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-md);
+  border-top: 3px solid var(--green);
+}
+
+.driverSummaryHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--t1);
+  margin-bottom: 4px;
+}
+
+.driverSummaryPeriod {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--t3);
+  margin-bottom: 14px;
+}
+
+.driverSummaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--t2);
+}
+
+.driverSummaryRow:first-of-type {
+  border-top: none;
+}
+
+.driverSummaryAccent {
+  color: var(--orange);
+}
+
+.driverSummaryAccentBlue {
+  color: var(--brand);
 }

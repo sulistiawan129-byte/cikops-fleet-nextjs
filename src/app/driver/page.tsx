@@ -147,13 +147,18 @@ export default function DriverPanelPage() {
       if (ctx.state === "suspended") {
         ctx.resume().catch(() => {});
       }
-      const playTone = (freq: number, startTime: number, duration: number) => {
+      const playTone = (
+        freq: number,
+        startTime: number,
+        duration: number,
+        peakGain = 0.5
+      ) => {
         const osc = ctx!.createOscillator();
         const gain = ctx!.createGain();
-        osc.type = "sine";
+        osc.type = "square";
         osc.frequency.value = freq;
         gain.gain.setValueAtTime(0.0001, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.22, startTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(peakGain, startTime + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
         osc.connect(gain);
         gain.connect(ctx!.destination);
@@ -161,18 +166,64 @@ export default function DriverPanelPage() {
         osc.stop(startTime + duration);
       };
       const now = ctx.currentTime;
-      playTone(880, now, 0.16);
-      playTone(1180, now + 0.18, 0.18);
+      // Pola dering 2x ulangan, lebih nyaring & lebih panjang dari sebelumnya
+      [0, 0.7].forEach((offset) => {
+        playTone(988, now + offset, 0.14, 0.55);
+        playTone(1318, now + offset + 0.16, 0.16, 0.55);
+        playTone(988, now + offset + 0.34, 0.14, 0.55);
+      });
     } catch {
-      // Web Audio tidak tersedia/diblokir — abaikan, getar tetap jalan.
+      // Web Audio tidak tersedia/diblokir — abaikan, getar & voice tetap jalan.
     }
   }
 
-  function notifyNewTask() {
+  function speakNewTaskAnnouncement(destination?: string) {
+    try {
+      if (typeof window === "undefined" || !("speechSynthesis" in window))
+        return;
+      const text = destination
+        ? `Ada tugas masuk, tujuan ${destination}`
+        : "Ada tugas masuk";
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "id-ID";
+      utter.rate = 1;
+      utter.pitch = 1;
+      utter.volume = 1;
+      // Batalkan ucapan sebelumnya yang masih berjalan agar tidak menumpuk
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    } catch {
+      // Web Speech API tidak tersedia/diblokir — abaikan, getar & bunyi tetap jalan.
+    }
+  }
+
+  function updateAppBadge(count: number) {
+    try {
+      const nav = navigator as Navigator & {
+        setAppBadge?: (count?: number) => Promise<void>;
+        clearAppBadge?: () => Promise<void>;
+      };
+      if (count > 0 && nav.setAppBadge) {
+        nav.setAppBadge(count).catch(() => {});
+      } else if (nav.clearAppBadge) {
+        nav.clearAppBadge().catch(() => {});
+      }
+    } catch {
+      // PWA Badge API tidak didukung browser ini — abaikan.
+    }
+    if (typeof document !== "undefined") {
+      document.title =
+        count > 0 ? `(${count}) CIKOPS Fleet` : "CIKOPS Fleet Ops";
+    }
+  }
+
+  function notifyNewTask(destination?: string) {
     if (typeof navigator !== "undefined" && navigator.vibrate) {
-      navigator.vibrate([180, 90, 180]);
+      // Pola getar lebih panjang & berulang agar lebih terasa di kantong/saku
+      navigator.vibrate([260, 110, 260, 110, 260]);
     }
     playNotificationSound();
+    speakNewTaskAnnouncement(destination);
   }
 
   // ── today tasks loader + realtime ──
@@ -184,24 +235,22 @@ export default function DriverPanelPage() {
         const data = await getDriverTasksToday(driverId);
         setTodayTasks(data);
 
-        const currentAssignedIds = new Set(
-          data.filter((t) => t.status === "ASSIGNED").map((t) => t.id)
-        );
+        const assignedTasks = data.filter((t) => t.status === "ASSIGNED");
+        const currentAssignedIds = new Set(assignedTasks.map((t) => t.id));
         const known = knownAssignedIdsRef.current;
         if (known !== null) {
-          let hasNewTask = false;
-          for (const id of currentAssignedIds) {
-            if (!known.has(id)) {
-              hasNewTask = true;
-              break;
-            }
-          }
-          if (hasNewTask) {
-            notifyNewTask();
-            showToast("Tugas baru masuk 🔔");
+          const newTasks = assignedTasks.filter((t) => !known.has(t.id));
+          if (newTasks.length > 0) {
+            notifyNewTask(newTasks[0].tujuan);
+            showToast(
+              newTasks.length > 1
+                ? `${newTasks.length} tugas baru masuk 🔔`
+                : "Tugas baru masuk 🔔"
+            );
           }
         }
         knownAssignedIdsRef.current = currentAssignedIds;
+        updateAppBadge(assignedTasks.length);
       } catch (e) {
         setTodayError(e instanceof Error ? e.message : "Gagal memuat tugas");
       } finally {
@@ -329,6 +378,7 @@ export default function DriverPanelPage() {
   function logout() {
     localStorage.removeItem("cikops_driver_session");
     knownAssignedIdsRef.current = null;
+    updateAppBadge(0);
     setLoggedDriver(null);
     setSelectedDriver(null);
     setScreen("landing");
